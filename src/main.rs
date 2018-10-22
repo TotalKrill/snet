@@ -83,7 +83,7 @@ fn main() {
 
     // Multiple consumer, single producer
     let bus: Bus<Vec<u8>> = Bus::new(10);
-    // We are going to let multiple threads spawn rx and send broadcasts
+    // We are going to let different threads spawn rx and send broadcasts
     let bus = Arc::new( Mutex::new( bus ) );
 
     let listener = TcpListener::bind(["127.0.0.1:", port].concat() ).expect("Could not bind to port");
@@ -104,13 +104,12 @@ fn main() {
         }
     });
 
-    let bus_broadcast = bus.clone();
     let handle = thread::spawn(move || {
         loop{
             let mut serial_bytes  = [0;10000];
             match serialport.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
-                    bus_broadcast.lock().unwrap().broadcast(serial_bytes[..n].to_vec());
+                    bus.lock().unwrap().broadcast(serial_bytes[..n].to_vec());
                 },
                 // Timeouts just means there was no bytes written during this time
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
