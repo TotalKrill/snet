@@ -12,7 +12,6 @@ use std::io::prelude::*;
 use std::io::{self, Write};
 
 use serialport::prelude::*;
-use serialport::Error;
 
 
 use clap::{App, Arg};
@@ -79,7 +78,7 @@ fn main() {
     let port = matches.value_of("port").unwrap();
 
     let mut settings: SerialPortSettings = Default::default();
-    settings.timeout = Duration::from_millis(100);
+    settings.timeout = Duration::from_millis(5);
     settings.baud_rate =baud_rate;
 
     // Multiple consumer, single producer
@@ -108,7 +107,7 @@ fn main() {
     let bus_broadcast = bus.clone();
     let handle = thread::spawn(move || {
         loop{
-            let mut serial_bytes  = [0;1000];
+            let mut serial_bytes  = [0;10000];
             match serialport.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
                     bus_broadcast.lock().unwrap().broadcast(serial_bytes[..n].to_vec());
@@ -121,10 +120,9 @@ fn main() {
                     println!("{}",e);
                     break;
                 },
-                _ => (),
             }
         }
     });
     // Exit if the serialport errors out on us
-    handle.join();
+    let _exit = handle.join();
 }
