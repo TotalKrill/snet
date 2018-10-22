@@ -6,6 +6,7 @@ readme = "README.md"
 description = "Small tool that will forward bytes from a serialport to a serialport, unsecure and one-directional"
 edition = "2018"
 license = "MIT"
+repository = "https://github.com/TotalKrill/snet"
 
 [dependencies]
 bus = "*"
