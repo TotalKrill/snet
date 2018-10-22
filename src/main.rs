@@ -90,7 +90,11 @@ fn main() {
 
     let serialport = serialport::open_with_settings(&portname, &settings);
 
-    let mut serialport = serialport.expect("Could not connect to serialport");
+    let mut serialport = serialport.expect("Could not open serialport");
+
+    println!("Opened {}, port {}",
+             portname,
+             port);
 
     let bus_add = bus.clone();
     thread::spawn(move  || {
@@ -124,4 +128,5 @@ fn main() {
     });
     // Exit if the serialport errors out on us
     let _exit = handle.join();
+    println!("Exiting");
 }
