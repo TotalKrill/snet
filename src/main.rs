@@ -78,7 +78,7 @@ fn main() {
     let port = matches.value_of("port").unwrap();
 
     let mut settings: SerialPortSettings = Default::default();
-    settings.timeout = Duration::from_millis(5);
+    settings.timeout = Duration::from_millis(100);
     settings.baud_rate =baud_rate;
 
     // Multiple consumer, single producer
@@ -86,7 +86,7 @@ fn main() {
     // We are going to let different threads spawn rx and send broadcasts
     let bus = Arc::new( Mutex::new( bus ) );
 
-    let listener = TcpListener::bind(["127.0.0.1:", port].concat() ).expect("Could not bind to port");
+    let listener = TcpListener::bind(["0.0.0.0:", port].concat() ).expect("Could not bind to port");
 
     let serialport = serialport::open_with_settings(&portname, &settings);
 
@@ -110,7 +110,7 @@ fn main() {
 
     let handle = thread::spawn(move || {
         loop{
-            let mut serial_bytes  = [0;10000];
+            let mut serial_bytes  = [0;1000];
             match serialport.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
                     bus.lock().unwrap().broadcast(serial_bytes[..n].to_vec());
