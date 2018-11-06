@@ -9,6 +9,7 @@ use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
 use std::io::prelude::*;
+use std::sync::mpsc;
 use std::io::{self, Write};
 
 use serialport::prelude::*;
@@ -19,19 +20,43 @@ use clap::{App, Arg};
 use std::sync::*;
 
 type StrRead = BusReader<Vec<u8>>;
+type TcpToSerial = mpsc::Sender<Vec<u8>>;
 
-fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead )
+fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: TcpToSerial )
 {
+    // spawn thread that sends from serialport to socket
+    let mut to_serial_tcp = stream.try_clone().unwrap();
+    thread::spawn(move  || {
+        loop{
+            let data = ser_rx.recv().unwrap();
 
-    loop{
-        let data = ser_rx.recv().unwrap();
+            if stream.write( &data ).is_ok() {
+                //stream.flush().unwrap();
+            } else {
+                break;
+            }
 
-        if stream.write( &data ).is_ok() {
-            stream.flush().unwrap();
-        } else {
-            break;
         }
-    }
+    });
+    // send from socket to serial in another thread
+    thread::spawn(move  || {
+        loop{
+            let mut serial_bytes: [u8;1000] = [0;1000];
+
+            match to_serial_tcp.read( &mut serial_bytes[..] ) {
+                Ok(n) => {
+                    let printout =std::str::from_utf8(&serial_bytes[..n]);
+                    if let Ok(p) = printout {
+                        println!("Got {} bytes: {}", n, p);
+                    };
+                    tcp_send.send(serial_bytes[..n].to_vec());
+                },
+
+                _ => println!("nope"),
+            };
+
+        }
+    });
 
 }
 
@@ -96,20 +121,27 @@ fn main() {
              portname,
              port);
 
+    let (to_serial_tx, to_serial_rx) = mpsc::channel();
+
+    // thread that spawns new threads everyime someone connects to the serial
     let bus_add = bus.clone();
     thread::spawn(move  || {
         for stream in listener.incoming() {
             let stream = stream.unwrap();
             let rx = bus_add.lock().unwrap().add_rx();
+            let serialout_tx = &to_serial_tx.clone();
             thread::spawn( || {
-                handle_connection(stream, rx );
+                handle_connection(stream, rx, to_serial_tx );
             });
 
         }
     });
 
+    let mut serialout = serialport.try_clone().unwrap();
+    // thread that sends data from serial to all that listens
     let handle = thread::spawn(move || {
         loop{
+            //TODO add ringbuffer to send history on new connects
             let mut serial_bytes  = [0;1000];
             match serialport.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
@@ -126,6 +158,37 @@ fn main() {
             }
         }
     });
+
+    // thread that sends data to serial from all that listens
+    let tcp_rx = to_serial_rx;
+    let handle = thread::spawn(move || {
+        loop{
+            let data = tcp_rx.recv().unwrap();
+
+            // let data = match data {
+            //     Ok(data) => data,
+            //     _ => {
+            //         // println!("{}", e);
+            //         // "".as_bytes()
+            //     },
+            // };
+
+            match serialout.write( &data ) {
+                Ok(n) => {
+                    println!("wrote {} bytes", n);
+                },
+                // Timeouts just means there was no bytes written during this time
+                Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                },
+                // ends up here if unplugged
+                Err(e) => {
+                    println!("{}",e);
+                    break;
+                },
+            }
+        }
+    });
+
     // Exit if the serialport errors out on us
     let _exit = handle.join();
     println!("Exiting");
