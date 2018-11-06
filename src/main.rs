@@ -122,6 +122,7 @@ fn main() {
              port);
 
     let (to_serial_tx, to_serial_rx) = mpsc::channel();
+    let to_serial_tx = Arc::new( Mutec::new( to_serial_tx) );
 
     // thread that spawns new threads everyime someone connects to the serial
     let bus_add = bus.clone();
