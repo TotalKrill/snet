@@ -125,11 +125,12 @@ fn main() {
 
     // thread that spawns new threads everyime someone connects to the serial
     let bus_add = bus.clone();
-    thread::spawn( || {
+    thread::spawn(move  || {
+        let to_serial_tx = to_serial_tx.clone();
         for stream in listener.incoming() {
             let stream = stream.unwrap();
             let rx = bus_add.lock().unwrap().add_rx();
-            let serialout_tx = &to_serial_tx.clone();
+            let serialout_tx = to_serial_tx.clone();
             thread::spawn(move || {
                 handle_connection(stream, rx, to_serial_tx );
             });
