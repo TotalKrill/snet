@@ -32,25 +32,25 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, tcp_send: TcpTo
         loop{
             match ser_rx.recv() {
                 Err(e) => {
-                    println!("Serial -> Socket connection close");
                     error!("{}",e);
                     break;
                 },
                 Ok(data) => {
                     if let Err(e) = stream.write( &data ) {
-                        println!("Serial -> Socket connection close");
                         error!("{}",e);
                         break;
                     }
                 },
             }
         }
+        println!("Serial -> Socket connection close");
     });
     // send from socket to serial in another thread
     thread::spawn(move  || {
         loop{
             let mut serial_bytes: [u8;1000] = [0;1000];
 
+            //TODO add timeout or delay
             match to_serial_tcp.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
                     if n > 0 {
@@ -60,23 +60,21 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, tcp_send: TcpTo
                         };
                     }
                     else {
-                        println!("Socket -> Serial connection close");
                         break;
                     }
                     if let Err( e ) = tcp_send.send(serial_bytes[..n].to_vec()) {
-                        println!("Socket -> Serial connection close");
                         error!("{}",e);
                         break;
                     }
                 },
 
                 _ => {
-                    println!("Socket -> Serial connection close");
                     break;
                 },
             };
 
         }
+        println!("Socket -> Serial connection close");
     });
 
 }
@@ -192,7 +190,6 @@ fn main() {
             //         // "".as_bytes()
             //     },
             // };
-
             match serialout.write( &data ) {
                 Ok(n) => {
                     trace!("wrote {} bytes", n);
