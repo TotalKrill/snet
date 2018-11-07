@@ -1,6 +1,8 @@
 extern crate bus;
 extern crate clap;
 extern crate serialport;
+#[macro_use]
+extern crate log;
 
 use bus::Bus;
 use bus::BusReader;
@@ -22,20 +24,22 @@ use std::sync::*;
 type StrRead = BusReader<Vec<u8>>;
 type TcpToSerial = mpsc::Sender<Vec<u8>>;
 
-fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: TcpToSerial )
+fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, tcp_send: TcpToSerial )
 {
     // spawn thread that sends from serialport to socket
     let mut to_serial_tcp = stream.try_clone().unwrap();
     thread::spawn(move  || {
         loop{
             match ser_rx.recv() {
-                Err(_e) => {
+                Err(e) => {
                     println!("Serial -> Socket connection close");
+                    error!("{}",e);
                     break;
                 },
                 Ok(data) => {
                     if let Err(e) = stream.write( &data ) {
                         println!("Serial -> Socket connection close");
+                        error!("{}",e);
                         break;
                     }
                 },
@@ -52,7 +56,7 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: T
                     if n > 0 {
                         let printout =std::str::from_utf8(&serial_bytes[..n]);
                         if let Ok(p) = printout {
-                            //println!("Got {} bytes: {}", n, p);
+                            trace!("Got {} bytes: {}", n, p);
                         };
                     }
                     else {
@@ -61,6 +65,7 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: T
                     }
                     if let Err( e ) = tcp_send.send(serial_bytes[..n].to_vec()) {
                         println!("Socket -> Serial connection close");
+                        error!("{}",e);
                         break;
                     }
                 },
@@ -154,7 +159,7 @@ fn main() {
 
     let mut serialout = serialport.try_clone().unwrap();
     // thread that sends data from serial to all that listens
-    let handle = thread::spawn(move || {
+    let _handle = thread::spawn(move || {
         loop{
             //TODO add ringbuffer to send history on new connects
             let mut serial_bytes  = [0;1000];
@@ -190,7 +195,7 @@ fn main() {
 
             match serialout.write( &data ) {
                 Ok(n) => {
-                    //println!("wrote {} bytes", n);
+                    trace!("wrote {} bytes", n);
                 },
                 // Timeouts just means there was no bytes written during this time
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
