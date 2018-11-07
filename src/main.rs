@@ -28,14 +28,18 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: T
     let mut to_serial_tcp = stream.try_clone().unwrap();
     thread::spawn(move  || {
         loop{
-            let data = ser_rx.recv().unwrap();
-
-            if stream.write( &data ).is_ok() {
-                //stream.flush().unwrap();
-            } else {
-                break;
+            match ser_rx.recv() {
+                Err(_e) => {
+                    println!("Serial -> Socket connection close");
+                    break;
+                },
+                Ok(data) => {
+                    if let Err(e) = stream.write( &data ) {
+                        println!("Serial -> Socket connection close");
+                        break;
+                    }
+                },
             }
-
         }
     });
     // send from socket to serial in another thread
@@ -45,14 +49,26 @@ fn handle_connection(mut stream: TcpStream, mut ser_rx: StrRead, mut tcp_send: T
 
             match to_serial_tcp.read( &mut serial_bytes[..] ) {
                 Ok(n) => {
-                    let printout =std::str::from_utf8(&serial_bytes[..n]);
-                    if let Ok(p) = printout {
-                        println!("Got {} bytes: {}", n, p);
-                    };
-                    tcp_send.send(serial_bytes[..n].to_vec());
+                    if n > 0 {
+                        let printout =std::str::from_utf8(&serial_bytes[..n]);
+                        if let Ok(p) = printout {
+                            //println!("Got {} bytes: {}", n, p);
+                        };
+                    }
+                    else {
+                        println!("Socket -> Serial connection close");
+                        break;
+                    }
+                    if let Err( e ) = tcp_send.send(serial_bytes[..n].to_vec()) {
+                        println!("Socket -> Serial connection close");
+                        break;
+                    }
                 },
 
-                _ => println!("nope"),
+                _ => {
+                    println!("Socket -> Serial connection close");
+                    break;
+                },
             };
 
         }
@@ -126,14 +142,12 @@ fn main() {
     // thread that spawns new threads everyime someone connects to the serial
     let bus_add = bus.clone();
     thread::spawn(move  || {
-        let to_serial_tx = to_serial_tx.clone();
+        let to_serial_tx = &to_serial_tx.clone();
         for stream in listener.incoming() {
             let stream = stream.unwrap();
             let rx = bus_add.lock().unwrap().add_rx();
-            let serialout_tx = to_serial_tx.clone();
-            thread::spawn(move || {
-                handle_connection(stream, rx, to_serial_tx );
-            });
+            //let serialout_tx = &to_serial_tx.clone();
+            handle_connection(stream, rx, to_serial_tx.clone() );
 
         }
     });
@@ -176,7 +190,7 @@ fn main() {
 
             match serialout.write( &data ) {
                 Ok(n) => {
-                    println!("wrote {} bytes", n);
+                    //println!("wrote {} bytes", n);
                 },
                 // Timeouts just means there was no bytes written during this time
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
