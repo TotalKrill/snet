@@ -1,9 +1,13 @@
 # snet
 
-snet is a small tool that connects to a serialport and then forwards everything it collects from there to tcp sockets
+snet is a small tool that connects to a serialport and then forwards everything it collects from there to tcp sockets, the main difference to ser2net is that this allows multiple accesses in both directions, and
+that this does a lot less and is less mature :)
 
-Its unsecure and its only one-directional for the moment, there
-are currently no plans to fix that
+Its unsecure so only run on trusted networks on non-critical things, its just a raw connection
+to the serialport, meaning every byte is forwarded in both directions. Telnet works as a client for
+simple things such as watching the output
+
+I might write a client that emulates a serialport on the client side...
 
 [![Latest version](https://img.shields.io/crates/v/snet.svg)](https://crates.io/crates/snet)
 ![License](https://img.shields.io/crates/l/snet.svg)
